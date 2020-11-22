@@ -8,6 +8,9 @@ edition = "2018"
 
 [dependencies]
 chrono = { version = "0.4.19", features = ["serde"] }
+dotenv = "0.15.0"
+r2d2 = "0.8.9"
+r2d2-mongodb = "0.2.2"
 rand = "0.7.3"
 rocket = "0.4.5"
 rocket_contrib = { version = "0.4.5", features = ["helmet", "uuid"] }
@@ -17,3 +20,4 @@ uuid = { version = "0.8.1", features = ["serde", "v4"] }
 
 [dev-dependencies]
 lazy_static = "1.4.0"
+serde_json = "1.0.59"
