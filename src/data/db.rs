@@ -49,14 +49,16 @@ impl User {
     pub fn match_password(&self, password: &String) -> bool {
         argon2::verify_encoded(&self.hashed_password, password.as_bytes()).unwrap()
     }
-    pub fn update_password(&mut self, password: &String) {
+    pub fn update_password(&mut self, password: &String) -> Self {
         self.hashed_password = hash_password(password, &self.salt);
         self.updated = Utc::now();
+        self.to_owned()
     }
-    pub fn update_user(&mut self, name: &String, email: &String) {
+    pub fn update_user(&mut self, name: &String, email: &String) -> Self {
         self.name = name.to_string();
         self.email = email.to_string();
         self.updated = Utc::now();
+        self.to_owned()
     }
 }
 
