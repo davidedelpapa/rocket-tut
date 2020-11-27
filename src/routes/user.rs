@@ -194,7 +194,7 @@ pub fn patch_user_rt(mut connection: Conn, user: Json<UserPassword>, id: Uuid) -
 
 #[get("/users/<email>", rank = 2)]
 pub fn id_user_rt(mut connection: Conn, email: String) -> ApiResponse {
-    let get_item: Result<Vec<String>, _> = connection.zrangebylex(LOOKUP, format!("[{}:", &email), "+");
+    let get_item: Result<Vec<String>, _> = connection.zrangebylex(LOOKUP, format!("[{}", &email), format!("({}\\xff", &email));
     match get_item {
         Ok(lookup_vector) => {
             if lookup_vector.is_empty(){
