@@ -41,6 +41,16 @@ fn new_user_rt_test(){
     let user: ResponseUser = serde_json::from_str(&response_body.as_str()).expect("Valid User Response");
     assert_eq!(user.name, "John Doe");
     assert_eq!(user.email, "j.doe@m.com");
+    // Cleanup
+    if response.status() == Status::Ok {
+        let res = client.delete(format!("/api/users/{}", user.id))
+            .header(ContentType::JSON)
+            .body(r##"{
+                "password": "123456"
+            }"##)
+            .dispatch();
+        assert_eq!(res.status(), Status::Ok);
+    }
 }
 
 #[test]
@@ -65,6 +75,16 @@ fn info_user_rt_test(){
     assert_eq!(user.name, "Jane Doe");
     assert_eq!(user.email, "jane.doe@m.com");
     assert_eq!(user.id, id);
+    // Cleanup
+    if response.status() == Status::Ok {
+        let res = client.delete(format!("/api/users/{}", id))
+            .header(ContentType::JSON)
+            .body(r##"{
+                "password": "123456"
+            }"##)
+            .dispatch();
+        assert_eq!(res.status(), Status::Ok);
+    }
 }
 
 #[test]
@@ -96,6 +116,17 @@ fn update_user_rt_test(){
     assert_eq!(user.name, "Jack Doe");
     assert_eq!(user.email, "jkd@m.com");
     assert_eq!(user.id, id);
+    
+    // Cleanup
+    if response.status() == Status::Ok {
+        let res = client.delete(format!("/api/users/{}", id))
+            .header(ContentType::JSON)
+            .body(r##"{
+                "password": "quertyuiop"
+            }"##)
+            .dispatch();
+        assert_eq!(res.status(), Status::Ok);
+    }
 }
 
 #[test]
@@ -151,6 +182,17 @@ fn patch_user_rt_test(){
     assert_eq!(response.status(), Status::Ok);
     assert_eq!(response.content_type(), Some(ContentType::JSON));
     assert_eq!(response.body_string(), Some("\"Password updated\"".into()));
+
+    // Cleanup
+    if response.status() == Status::Ok {
+        let res = client.delete(format!("/api/users/{}", id))
+            .header(ContentType::JSON)
+            .body(r##"{
+                "password": "quertyuiop"
+            }"##)
+            .dispatch();
+        assert_eq!(res.status(), Status::Ok);
+    }
 }
 
 #[test]
@@ -174,5 +216,16 @@ fn id_user_rt_test(){
     assert_eq!(response.content_type(), Some(ContentType::JSON));
     assert_eq!(user.name, "Janet Doe");
     assert_eq!(user.id, id);
+
+    // Cleanup
+    if response.status() == Status::Ok {
+        let res = client.delete(format!("/api/users/{}", id))
+            .header(ContentType::JSON)
+            .body(r##"{
+                "password": "zxcvbnm"
+            }"##)
+            .dispatch();
+        assert_eq!(res.status(), Status::Ok);
+    }
 }
 
