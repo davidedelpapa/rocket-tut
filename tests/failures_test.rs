@@ -28,8 +28,8 @@ fn new_user_rt_fail(){
     let response = client.post("/api/users")
         .header(ContentType::Binary)
         .body(r##"{
-            "name": "John Doe",
-            "email": "j.doe@m.com",
+            "name": "Johnny Doe",
+            "email": "johnny.doe@m.com",
             "password": "123456"
         }"##)
         .dispatch();
@@ -45,14 +45,14 @@ fn info_user_rt_fail(){
     let mut response_new_user = client.post("/api/users")
         .header(ContentType::JSON)
         .body(r##"{
-            "name": "Jane Doe",
-            "email": "jane.doe@m.com",
+            "name": "Jay Doe",
+            "email": "jay.doe@m.com",
             "password": "123456"
         }"##)
         .dispatch();
     let response_body = response_new_user.body_string().expect("Response Body");
     let user_new: ResponseUser = serde_json::from_str(&response_body.as_str()).expect("Valid User Response");
-    let mut id = user_new.id;
+    let mut id = user_new.id.clone();
     // Now we construct a purposedly false id. 
     // we need to keep it looking as a Uuid, otherwise it will get passed to the second ranking GET
     if id.remove(0) != 'a' {
@@ -66,6 +66,15 @@ fn info_user_rt_fail(){
     assert_eq!(response.content_type(), Some(ContentType::JSON));
     assert_eq!(response.status(), Status::InternalServerError);
     assert_eq!(response.body_string(), Some(format!("\"id {} not found\"",  id)));
+
+    // Cleanup
+    let res = client.delete(format!("/api/users/{}", user_new.id))
+        .header(ContentType::JSON)
+        .body(r##"{
+            "password": "123456"
+        }"##)
+        .dispatch();
+    assert_eq!(res.status(), Status::Ok);
 }
 
 #[test]
@@ -75,8 +84,8 @@ fn update_user_rt_fail(){
     let mut response_new_user = client.post("/api/users")
         .header(ContentType::JSON)
         .body(r##"{
-            "name": "Jak Doe",
-            "email": "jack.doe@m.com",
+            "name": "Jack S. Doe",
+            "email": "jack.s.doe@m.com",
             "password": "quertyuiop"
         }"##)
         .dispatch();
@@ -95,8 +104,8 @@ fn update_user_rt_fail(){
     let mut response = client.put(format!("/api/users/{}", wrong_id))
         .header(ContentType::JSON)
         .body(r##"{
-            "name": "Jack Doe",
-            "email": "jkd@m.com",
+            "name": "Jack S. Doe",
+            "email": "jack.s.doe@m.com",
             "password": "quertyuiop"
         }"##)
         .dispatch();
@@ -109,8 +118,8 @@ fn update_user_rt_fail(){
     let mut response = client.put(format!("/api/users/{}", id))
         .header(ContentType::JSON)
         .body(r##"{
-            "name": "Jack Doe",
-            "email": "jkd@m.com",
+            "name": "Jack S. Doe",
+            "email": "jack.s.doe@m.com",
             "password": "123456"
         }"##)
         .dispatch();
@@ -118,6 +127,15 @@ fn update_user_rt_fail(){
     assert_eq!(response.content_type(), Some(ContentType::JSON));
     assert_eq!(response.status(), Status::InternalServerError);
     assert_eq!(response.body_string(), Some("\"user not authenticated\"".to_string()));
+
+    // Cleanup
+    let res = client.delete(format!("/api/users/{}", id))
+        .header(ContentType::JSON)
+        .body(r##"{
+            "password": "quertyuiop"
+        }"##)
+        .dispatch();
+    assert_eq!(res.status(), Status::Ok);
 }
 
 #[test]
@@ -126,8 +144,8 @@ fn delete_user_rt_fail(){
     let mut response_new_user = client.post("/api/users")
         .header(ContentType::JSON)
         .body(r##"{
-            "name": "Jerome Doe",
-            "email": "j85@m.com",
+            "name": "Jerome M. Doe",
+            "email": "jm85@m.com",
             "password": "asdfghjkl"
         }"##)
         .dispatch();
@@ -165,6 +183,15 @@ fn delete_user_rt_fail(){
     assert_eq!(response.content_type(), Some(ContentType::JSON));
     assert_eq!(response.status(), Status::InternalServerError);
     assert_eq!(response.body_string(), Some("\"user not authenticated\"".to_string()));
+    
+    // Cleanup
+    let res = client.delete(format!("/api/users/{}", id))
+        .header(ContentType::JSON)
+        .body(r##"{
+            "password": "asdfghjkl"
+        }"##)
+        .dispatch();
+    assert_eq!(res.status(), Status::Ok);
 }
 
 #[test]
@@ -173,8 +200,8 @@ fn patch_user_rt_fail(){
     let mut response_new_user = client.post("/api/users")
         .header(ContentType::JSON)
         .body(r##"{
-            "name": "Jonathan Doe",
-            "email": "jondon@m.com",
+            "name": "Jonathan M. Doe",
+            "email": "jondonmagic@m.com",
             "password": "123456"
         }"##)
         .dispatch();
@@ -225,6 +252,15 @@ fn patch_user_rt_fail(){
     assert_eq!(response.content_type(), Some(ContentType::JSON));
     assert_eq!(response.status(), Status::InternalServerError);
     assert_eq!(response.body_string(), Some("\"Password not provided\"".to_string()));
+    
+    // Cleanup
+    let res = client.delete(format!("/api/users/{}", id))
+        .header(ContentType::JSON)
+        .body(r##"{
+            "password": "123456"
+        }"##)
+        .dispatch();
+    assert_eq!(res.status(), Status::Ok);
 }
 
 #[test]
@@ -233,8 +269,8 @@ fn id_user_rt_fail(){
     let mut response_new_user = client.post("/api/users")
         .header(ContentType::JSON)
         .body(r##"{
-            "name": "Janet Doe",
-            "email": "janet.doe@m.com",
+            "name": "Janet Eveline Doe",
+            "email": "janetev.doe@m.com",
             "password": "zxcvbnm"
         }"##)
         .dispatch();
@@ -243,15 +279,27 @@ fn id_user_rt_fail(){
     assert_eq!(response_new_user.content_type(), Some(ContentType::JSON));
     let response_body = response_new_user.body_string().expect("Response Body");
     let user: ResponseUser = serde_json::from_str(&response_body.as_str()).expect("Valid User Response");
-    assert_eq!(user.name, "Janet Doe");
-    assert_eq!(user.email, "janet.doe@m.com");
+    assert_eq!(user.name, "Janet Eveline Doe");
+    assert_eq!(user.email, "janetev.doe@m.com");
 
     // First test: wrong email == no user found
-    let mut response = client.get(format!("/api/users/{}", "janet@m.com")).dispatch();
+    let mut response = client.get(format!("/api/users/{}", "janetta@l.com")).dispatch();
+
+    let answer = response.body_string();
+    println!("{:?}", &answer);
     assert_ne!(response.status(), Status::Ok);
     assert_eq!(response.content_type(), Some(ContentType::JSON));
     assert_eq!(response.status(), Status::InternalServerError);
-    assert_eq!(response.body_string(), Some(format!("\"user janet@m.com not found\"")));
+    assert_eq!(answer, Some(format!("\"user janetta@l.com not found\"")));
+
+    // Cleanup
+    let res = client.delete(format!("/api/users/{}", user.id))
+        .header(ContentType::JSON)
+        .body(r##"{
+            "password": "zxcvbnm"
+        }"##)
+        .dispatch();
+    assert_eq!(res.status(), Status::Ok);
 }
 
 #[test]
@@ -264,7 +312,6 @@ fn get_rank_fail(){
     // but we'll format is as an email at the end.
     // It should fail because of invalid characters: '@' and '.'
     let deceptive_email = "7b8f9f31-d70c-4834-8164-ca20b8@b.989";
-    
     let mut response = client.get(format!("/api/users/{}", deceptive_email)).dispatch();
     assert_ne!(response.status(), Status::Ok);
     assert_eq!(response.content_type(), Some(ContentType::JSON));
