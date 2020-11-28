@@ -11,11 +11,12 @@ use rocket::response::{Responder, Response};
 use r2d2_redis::redis as redis;
 use redis::Commands;
 use anyhow::Result as AnyResult;
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use crate::data::db::{User, InsertableUser, ResponseUser, UserPassword};
 use crate::data::redis_connection::Conn;
 
 const LOOKUP: &str = "email_lookup";
+const UNIQUE_EMAIL_SET: &str = "email_set";
 
 #[derive(Debug)]
 pub struct ApiResponse {
@@ -83,16 +84,34 @@ impl User {
         let email = self.email.clone();
         let r_user = [
             ("name", self.name),
-            ("email", self.email),
+            ("email", self.email.to_lowercase()),
             ("hashed_password", self.hashed_password),
             ("salt", self.salt),
             ("created", self.created.to_string()),
             ("updated", self.updated.to_string())
         ];
         connection.hset_multiple(&id, &r_user)?;
+        // Enforce email uniqueness
+        let res_enforce: i32 = connection.sadd(UNIQUE_EMAIL_SET, email.clone())?;
         // Add email lookup index
-        let _ = connection.zadd(LOOKUP, format!("{}:{}", email, id), 0)?;
+        if res_enforce != 0 {
+            let _ = connection.zadd(LOOKUP, format!("{}:{}", email, id), 0)?;
+        } else {
+            bail!("email already in use");
+        }
+        
         Ok(())
+    }
+
+    fn is_unique_email(self, connection: &mut Conn) -> AnyResult<bool> {
+        let res_enforce: Result<i8, _> = connection.sismember(UNIQUE_EMAIL_SET, self.email);
+        match res_enforce {
+            Ok(res) => {
+                if res == 0 { return Ok(true); }
+                return Ok(false);
+            },
+            Err(_) => Err(anyhow!("Connection error")),
+        }
     }
 }
 
@@ -114,8 +133,18 @@ pub fn user_list_rt(mut connection: Conn) -> ApiResponse {
 #[post("/users", format = "json", data = "<user>")]
 pub fn new_user_rt(mut connection: Conn, user: Json<InsertableUser>) -> ApiResponse {
     let ins_user = User::from_insertable((*user).clone());
-    match ins_user.clone().to_redis(&mut connection){
-        Ok(_) => ApiResponse::ok(json!(ResponseUser::from_user(&ins_user))),
+    match ins_user.clone().is_unique_email(&mut connection) {
+        Ok(res) => {
+            match res {
+                true => {
+                    match ins_user.clone().to_redis(&mut connection){
+                        Ok(_) => ApiResponse::ok(json!(ResponseUser::from_user(&ins_user))),
+                        Err(_) => ApiResponse::internal_err(),
+                    }
+                },
+                false => ApiResponse::err(json!("email already in use")),
+            }
+        },
         Err(_) => ApiResponse::internal_err(),
     }
 }
@@ -136,7 +165,24 @@ pub fn update_user_rt(mut connection: Conn, user: Json<InsertableUser>, id: Uuid
         Ok(user_from_redis) =>{
             let mut user_to_redis = user_from_redis.clone();
             if user_to_redis.match_password(&user.password) {
+                // Check first new email is not in use
+                let check_old_email: Result<i8, _> = connection.sismember(UNIQUE_EMAIL_SET, user.email.clone());
+                match check_old_email {
+                    Ok(res) => {
+                        if res != 0 { return ApiResponse::err(json!("email already in use")); }
+                    },
+                    Err(_) => { return ApiResponse::internal_err(); },
+                }
+                // cleanup old email
                 let _res_lookup: Result<i32, _> = connection.zrem(LOOKUP, format!("{}:{}", user_from_redis.email, id));
+                let remove_email: Result<i8, _> = connection.srem(UNIQUE_EMAIL_SET, &user_to_redis.email);
+                match remove_email {
+                    Ok(removed) => {
+                        if removed == 0 { return ApiResponse::internal_err(); }
+                    },
+                    Err(_) => { return ApiResponse::internal_err(); },
+                }
+                //
                 let insert_user = user_to_redis.update_user(&user.name, &user.email);
                 match insert_user.clone().to_redis(&mut connection) {
                     Ok(_) => ApiResponse::ok(json!(ResponseUser::from_user(&insert_user))),
@@ -156,7 +202,9 @@ pub fn delete_user_rt(mut connection: Conn, user: Json<UserPassword>, id: Uuid) 
         Ok(user_from_redis) =>{
             if user_from_redis.match_password(&user.password) {
                 let res: Result<i32, _> = connection.del(&id);
-                let _res_lookup: Result<i32, _> = connection.zrem(LOOKUP, format!("{}:{}", user_from_redis.email, id));
+                // cleanup old email
+                let _res_lookup: Result<i32, _> = connection.zrem(LOOKUP, format!("{}:{}",&user_from_redis.email, id));
+                let _res_remove_email: Result<i8, _> = connection.srem(UNIQUE_EMAIL_SET, &user_from_redis.email);
                 match res {
                     Ok(_) => ApiResponse::ok(json!(ResponseUser::from_user(&user_from_redis))),
                     Err(_) => ApiResponse::internal_err(),
@@ -177,7 +225,10 @@ pub fn patch_user_rt(mut connection: Conn, user: Json<UserPassword>, id: Uuid) -
                 Ok(mut user_from_redis) =>{
                     if user_from_redis.clone().match_password(&user.password) {
                         let insert_user = user_from_redis.update_password(&passw);
-                        let _res_lookup: Result<i32, _> = connection.zrem(LOOKUP, format!("{}:{}", user_from_redis.email, id));
+                        // cleanup old email
+                        let _res_lookup: Result<i32, _> = connection.zrem(LOOKUP, format!("{}:{}",&user_from_redis.email, id));
+                        let _res_remove_email: Result<i8, _> = connection.srem(UNIQUE_EMAIL_SET, &user_from_redis.email);
+                        
                         match insert_user.clone().to_redis(&mut connection) {
                             Ok(_) => ApiResponse::ok(json!("Password updated")),
                             Err(_) => ApiResponse::internal_err(),
