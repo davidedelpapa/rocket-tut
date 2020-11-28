@@ -328,7 +328,7 @@ fn get_rank_fail(){
 }
 
 #[test]
-fn unique_emails_fail(){
+fn unique_emails_insertion_fail(){
     let client = common::setup();
 
     // First user with its email
@@ -368,4 +368,71 @@ fn unique_emails_fail(){
         }"##)
         .dispatch();
     assert_eq!(res.status(), Status::Ok);
+}
+
+#[test]
+fn unique_emails_update_fail(){
+    let client = common::setup();
+
+    // First user with its email
+    let mut response_first_user = client.post("/api/users")
+        .header(ContentType::JSON)
+        .body(r##"{
+            "name": "Joe Doe",
+            "email": "jeffreyd@m.com",
+            "password": "123456"
+        }"##)
+        .dispatch();
+    // We have to make sure this does not fail because of wrong user insertion
+    assert_eq!(response_first_user.status(), Status::Ok);
+    assert_eq!(response_first_user.content_type(), Some(ContentType::JSON));
+    let response_body = response_first_user.body_string().expect("Response Body");
+    let first_user: ResponseUser = serde_json::from_str(&response_body.as_str()).expect("Valid User Response");
+    let first_id = first_user.id;
+
+    // Second user, with its other email
+    let mut response_second_user = client.post("/api/users")
+        .header(ContentType::JSON)
+        .body(r##"{
+            "name": "Jolanda Doe",
+            "email": "jo_me@m.com",
+            "password": "qwertyuiop"
+        }"##)
+        .dispatch();
+    // We have to make sure this does not fail because of wrong  user insertion
+    assert_eq!(response_second_user.status(), Status::Ok);
+    assert_eq!(response_second_user.content_type(), Some(ContentType::JSON));
+    let response2_body = response_second_user.body_string().expect("Response Body");
+    let second_user: ResponseUser = serde_json::from_str(&response2_body.as_str()).expect("Valid User Response");
+    let second_id = second_user.id;
+
+    // We change the first user to have the same email as the second one
+    let mut response = client.put(format!("/api/users/{}", first_id))
+        .header(ContentType::JSON)
+        .body(r##"{
+            "name": "Joe K. Doe",
+            "email": "jo_me@m.com",
+            "password": "123456"
+        }"##)
+        .dispatch();
+    assert_ne!(response.status(), Status::Ok);
+    assert_eq!(response.content_type(), Some(ContentType::JSON));
+    assert_eq!(response.status(), Status::InternalServerError);
+    assert_eq!(response.body_string(), Some("\"email already in use\"".to_string()));
+
+    // Cleanup (double trouble)
+    let res1 = client.delete(format!("/api/users/{}", first_id))
+        .header(ContentType::JSON)
+        .body(r##"{
+            "password": "123456"
+        }"##)
+        .dispatch();
+    assert_eq!(res1.status(), Status::Ok);
+    let res2 = client.delete(format!("/api/users/{}", second_id))
+        .header(ContentType::JSON)
+        .body(r##"{
+            "password": "qwertyuiop"
+        }"##)
+        .dispatch();
+    assert_eq!(res2.status(), Status::Ok);
 }

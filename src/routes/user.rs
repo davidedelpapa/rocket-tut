@@ -71,7 +71,6 @@ pub fn new_user_rt(connection: Conn, user: Json<InsertableUser>) -> ApiResponse 
                 Some(document) => {
                     match user_coll.insert_one(document.to_owned(), None) {
                         Ok(inserted) => {
-                            println!("{:?}", &inserted);
                             match inserted.inserted_id {
                                 Some(id) => {
                                     match user_coll.find_one(Some(doc! { "_id":  id }), None) {
@@ -149,6 +148,16 @@ pub fn update_user_rt(connection: Conn, user: Json<InsertableUser>, id: Uuid) ->
                     match found_user_doc {
                         Ok(mut found_user) => {
                             if found_user.match_password(&user.password) {
+                                // Check the email does not yet exist
+                                match user_coll.find_one(Some(doc! { "email": &user.email }), None) {
+                                    Ok(mail_query_result) => {
+                                        match mail_query_result {
+                                            Some(_) => { return ApiResponse::err(json!("email already in use")); },
+                                            None => ()
+                                        }
+                                    },
+                                    Err(_) => { return ApiResponse::internal_err(); }
+                                }
                                 let insertable = found_user.update_user(&user.name, &user.email);
                                 match bson::to_bson(&insertable) {
                                     Ok(serialized) => {
