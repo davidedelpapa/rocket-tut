@@ -326,3 +326,46 @@ fn get_rank_fail(){
     assert_ne!(response_body, format!("\"id {} not found\"",  deceptive_email));
     assert_eq!(response_body, format!("\"user {} not found\"", deceptive_email));
 }
+
+#[test]
+fn unique_emails_fail(){
+    let client = common::setup();
+
+    // First user with its email
+    let mut response_new_user = client.post("/api/users")
+        .header(ContentType::JSON)
+        .body(r##"{
+            "name": "Jared Doe",
+            "email": "jthebest@m.com",
+            "password": "123456"
+        }"##)
+        .dispatch();
+    // We have to make sure this does not fail because of wrong new user insertion
+    assert_eq!(response_new_user.status(), Status::Ok);
+    assert_eq!(response_new_user.content_type(), Some(ContentType::JSON));
+    let response_body = response_new_user.body_string().expect("Response Body");
+    let user: ResponseUser = serde_json::from_str(&response_body.as_str()).expect("Valid User Response");
+    
+    // Second user with the same email
+    let mut response_second_user = client.post("/api/users")
+        .header(ContentType::JSON)
+        .body(r##"{
+            "name": "Joy Doe",
+            "email": "jthebest@m.com",
+            "password": "qwertyuiop"
+        }"##)
+        .dispatch();
+    
+    assert_ne!(response_second_user.status(), Status::Ok);
+    assert_eq!(response_second_user.content_type(), Some(ContentType::JSON));
+    assert_eq!(response_second_user.body_string(), Some("\"email already in use\"".to_string()));
+
+    // Cleanup
+    let res = client.delete(format!("/api/users/{}", user.id))
+        .header(ContentType::JSON)
+        .body(r##"{
+            "password": "123456"
+        }"##)
+        .dispatch();
+    assert_eq!(res.status(), Status::Ok);
+}

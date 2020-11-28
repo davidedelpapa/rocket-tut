@@ -71,6 +71,7 @@ pub fn new_user_rt(connection: Conn, user: Json<InsertableUser>) -> ApiResponse 
                 Some(document) => {
                     match user_coll.insert_one(document.to_owned(), None) {
                         Ok(inserted) => {
+                            println!("{:?}", &inserted);
                             match inserted.inserted_id {
                                 Some(id) => {
                                     match user_coll.find_one(Some(doc! { "_id":  id }), None) {
@@ -89,7 +90,20 @@ pub fn new_user_rt(connection: Conn, user: Json<InsertableUser>) -> ApiResponse 
                                         Err(_) => ApiResponse::internal_err(),
                                     }
                                 },
-                                None => ApiResponse::internal_err(),
+                                None => match inserted.write_exception {
+                                    Some(wite_error) =>{
+                                        match wite_error.write_error {
+                                            Some(err) =>{
+                                                match err.code {
+                                                    11000 => ApiResponse::err(json!("email already in use")),
+                                                    _ => ApiResponse::internal_err(),
+                                                }
+                                            },
+                                            None => ApiResponse::internal_err(),
+                                        }
+                                    },
+                                    None => ApiResponse::internal_err(),
+                                }
                             }
                         },                    
                         Err(_) => ApiResponse::internal_err(),
