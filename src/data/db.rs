@@ -79,6 +79,20 @@ impl ResponseUser{
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PublicUser {
+    pub id: String,
+    pub name: String,
+}
+impl PublicUser{
+    pub fn from_user(user: &User)-> Self {
+        PublicUser{
+            id: user.id.to_string(),
+            name: format!("{}", user.name),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UserPassword {
     pub password: String,
     pub new_password: Option<String>,

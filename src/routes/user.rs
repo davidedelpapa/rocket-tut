@@ -10,7 +10,7 @@ use bson::{doc, Bson};
 use mongodb::db::ThreadedDatabase;
 use mongodb::coll::options::{ReturnDocument, FindOneAndUpdateOptions};
 
-use crate::data::db::{User, InsertableUser, ResponseUser, UserPassword};
+use crate::data::db::{User, InsertableUser, ResponseUser, PublicUser, UserPassword};
 use crate::data::mongo_connection::Conn;
 use crate::routes::responses::ApiResponse;
 use crate::data::security::JwtGuard;
@@ -81,8 +81,9 @@ pub fn new_user_rt(connection: Conn, user: Json<InsertableUser>) -> ApiResponse 
 }
 
 #[get("/users/<id>")]
-pub fn info_user_rt(connection: Conn, id: Uuid, _guard : JwtGuard) -> ApiResponse {
+pub fn info_user_rt(connection: Conn, id: Uuid, guard : JwtGuard) -> ApiResponse {
     let user_coll = &connection.collection(COLLECTION);
+    let guard_id =  &*guard;
     let id =  id.to_string();
     match user_coll.find_one(Some(doc! { "_id": id.clone() }), None) {
         Ok(find_one) => {
@@ -90,7 +91,13 @@ pub fn info_user_rt(connection: Conn, id: Uuid, _guard : JwtGuard) -> ApiRespons
                 Some(found_user) => {
                     let found_user_doc: Result<User, _> = bson::from_bson(Bson::Document(found_user));
                     match found_user_doc {
-                        Ok(found_user) => ApiResponse::ok(json!(ResponseUser::from_user(&found_user))),
+                        Ok(found_user) =>{
+                            if found_user.id.to_string() == *guard_id {
+                                ApiResponse::ok(json!(ResponseUser::from_user(&found_user)))
+                            } else {
+                                ApiResponse::ok(json!(PublicUser::from_user(&found_user)))
+                            }
+                        },
                         Err(_) => ApiResponse::internal_err(),
                     }
                 }
@@ -101,10 +108,10 @@ pub fn info_user_rt(connection: Conn, id: Uuid, _guard : JwtGuard) -> ApiRespons
     }
 }
 
-#[put("/users/<id>", format = "json", data = "<user>")]
-pub fn update_user_rt(connection: Conn, user: Json<InsertableUser>, id: Uuid, _guard : JwtGuard) -> ApiResponse {
+#[put("/users", format = "json", data = "<user>")]
+pub fn update_user_rt(connection: Conn, user: Json<InsertableUser>, guard : JwtGuard) -> ApiResponse {
     let user_coll = &connection.collection(COLLECTION);
-    let id =  id.to_string();
+    let id =  &*guard;
     match user_coll.find_one(Some(doc! { "_id": id.clone() }), None) {
         Ok(find_one) => {
             match find_one {
@@ -164,10 +171,10 @@ pub fn update_user_rt(connection: Conn, user: Json<InsertableUser>, id: Uuid, _g
     }
 }
 
-#[delete("/users/<id>", format = "json", data = "<user>")]
-pub fn delete_user_rt(connection: Conn, user: Json<UserPassword>, id: Uuid, _guard : JwtGuard) -> ApiResponse {
+#[delete("/users", format = "json", data = "<user>")]
+pub fn delete_user_rt(connection: Conn, user: Json<UserPassword>, guard: JwtGuard) -> ApiResponse {
     let user_coll = &connection.collection(COLLECTION);
-    let id =  id.to_string();
+    let id =  &*guard;
     match user_coll.find_one(Some(doc! { "_id": id.clone() }), None) {
         Ok(find_one) => {
             match find_one {
@@ -204,10 +211,10 @@ pub fn delete_user_rt(connection: Conn, user: Json<UserPassword>, id: Uuid, _gua
     }    
 }
 
-#[patch("/users/<id>", format = "json", data = "<user>")]
-pub fn patch_user_rt(connection: Conn, user: Json<UserPassword>, id: Uuid, _guard : JwtGuard) -> ApiResponse {
+#[patch("/users", format = "json", data = "<user>")]
+pub fn patch_user_rt(connection: Conn, user: Json<UserPassword>, guard : JwtGuard) -> ApiResponse {
     let user_coll = &connection.collection(COLLECTION);
-    let id =  id.to_string();
+    let id =  &*guard;
     match &user.new_password {
         Some(passw) => {
             match user_coll.find_one(Some(doc! { "_id": id.clone() }), None) {
@@ -250,15 +257,22 @@ pub fn patch_user_rt(connection: Conn, user: Json<UserPassword>, id: Uuid, _guar
 }
 
 #[get("/users/<email>", rank = 2)]
-pub fn id_user_rt(connection: Conn, email: String, _guard : JwtGuard) -> ApiResponse {
+pub fn id_user_rt(connection: Conn, email: String, guard : JwtGuard) -> ApiResponse {
     let user_coll = &connection.collection(COLLECTION);
+    let guard_id =  &*guard;
     match user_coll.find_one(Some(doc! { "email": email.clone() }), None) {
         Ok(find_one) => {
             match find_one {
                 Some(found_user) => {
                     let loaded_user_doc: Result<User, _> = bson::from_bson(Bson::Document(found_user));
                     match loaded_user_doc {
-                        Ok(loaded_user) => ApiResponse::ok(json!(ResponseUser::from_user(&loaded_user))),
+                        Ok(loaded_user) => {
+                            if loaded_user.id.to_string() == *guard_id {
+                                ApiResponse::ok(json!(ResponseUser::from_user(&loaded_user)))
+                            } else {
+                                ApiResponse::err(json!(format!("user {} not found",  email)))
+                            }
+                        },
                         Err(_) => ApiResponse::internal_err(),
                     }                    
                 },

@@ -1,3 +1,4 @@
+use std::ops::Deref;
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 use rocket::Outcome;
@@ -84,6 +85,13 @@ pub fn decode_token(token: String) ->Result<String, JwtDecodeError> {
 }
 
 pub struct JwtGuard(String);
+
+impl Deref for JwtGuard {
+    type Target = String;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub enum JwtGuardError {

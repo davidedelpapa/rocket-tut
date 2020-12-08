@@ -24,9 +24,9 @@ pub struct LoginUser {
     pub password: String,
 }
 
-#[derive(Serialize)]
-struct Authenticated {
-    id: String,
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Authenticated {
+    pub id: String,
 }
 
 #[post("/login", format = "json", data = "<login>")]
