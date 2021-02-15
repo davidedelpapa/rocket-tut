@@ -4,10 +4,10 @@ use rocket_contrib::json::Json;
 use rocket_contrib::json;
 use serde::{Deserialize, Serialize};
 
-use r2d2_mongodb::mongodb::bson as bson;
+use r2d2_mongodb::mongodb as bson;
 use r2d2_mongodb::mongodb as mongodb;
 
-use bson::{doc, Bson};
+use bson::{bson, doc, Bson};
 use mongodb::db::ThreadedDatabase;
 
 use crate::data::security;
